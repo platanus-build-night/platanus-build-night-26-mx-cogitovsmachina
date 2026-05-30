@@ -5,10 +5,17 @@ import { ControlPanel } from '@/components/ControlPanel';
 import { TraceViewer } from '@/components/TraceViewer';
 import { MemoryPanel } from '@/components/MemoryPanel';
 import { SandboxDBPanel } from '@/components/SandboxDBPanel';
+import { McpSkillsPanel } from '@/components/McpSkillsPanel';
+import { LatAmToolboxPanel } from '@/components/LatAmToolboxPanel';
 import { AgentStep, MentalPlan, MemorySegment, DatabaseFork } from '@/types';
 import { memoryClient } from '@/lib/memory';
 import { ghostClient } from '@/lib/ghost';
-import { ShieldAlert, Info, Globe, HardDrive } from 'lucide-react';
+import { Info, Globe, HardDrive, Shield } from 'lucide-react';
+
+interface LoadedSkill {
+  name: string;
+  source: string;
+}
 
 export default function Home() {
   const [isRunning, setIsRunning] = React.useState(false);
@@ -16,6 +23,7 @@ export default function Home() {
   const [plan, setPlan] = React.useState<MentalPlan | null>(null);
   const [memorySegments, setMemorySegments] = React.useState<MemorySegment[]>([]);
   const [activeForks, setActiveForks] = React.useState<DatabaseFork[]>([]);
+  const [loadedSkills, setLoadedSkills] = React.useState<LoadedSkill[]>([]);
   const [systemLoading, setSystemLoading] = React.useState(true);
 
   // Load initial data
@@ -82,6 +90,8 @@ export default function Home() {
               });
             } else if (chunk.type === 'plan') {
               setPlan(chunk.data as MentalPlan);
+            } else if (chunk.type === 'skills') {
+              setLoadedSkills(chunk.data.loaded as LoadedSkill[]);
             } else if (chunk.type === 'memory' || chunk.type === 'database') {
               // Trigger state reload to show changes in DB or memory panels
               await loadSystemState();
@@ -125,11 +135,11 @@ export default function Home() {
                   Wardenclyffe Console
                 </h1>
                 <span className="px-1.5 py-0.5 rounded bg-violet-950/50 border border-violet-800/40 text-[9px] text-violet-400 font-mono">
-                  v1.0.0-edge
+                  v2.0.0-edge
                 </span>
               </div>
               <p className="text-xs text-neutral-400">
-                AI-Native Agentic Framework for LatAm SMBs
+                AI-Native Agentic Framework with Persistent Sandboxes
               </p>
             </div>
           </div>
@@ -156,15 +166,15 @@ export default function Home() {
           </div>
           <div className="space-y-1">
             <h4 className="text-xs font-semibold text-neutral-200">
-              LatAm Optimization Engine (Token Maxing) Active
+              Phase 2 & 3 Integration: Persistent Memory & Local MCP Server
             </h4>
             <p className="text-[11px] text-neutral-400 leading-normal">
-              Wardenclyffe optimizes token context by offloading past events to <span className="font-mono text-neutral-300">memory.build</span> and spinning up temporary sandboxes on <span className="font-mono text-neutral-300">ghost.build</span>. This keeps local Llama 3 / Mistral execution extremely lean and cost-efficient.
+              Exposing a local JSON-RPC 2.0 Model Context Protocol (MCP) server for tool-calling databases and memory layers. Applying reusable framework skills (Tesla Planning, Osmani Harness TDD) to secure localized SMB compliance workflows in Mexico and Chile.
             </p>
           </div>
         </div>
 
-        {/* Dashboard Grid */}
+        {/* Dashboard Grid - Row 1 (Console Core) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
           {/* Controller - Left Column */}
           <div className="lg:col-span-4 flex flex-col">
@@ -177,7 +187,13 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Sub-layers Grid */}
+        {/* Dashboard Grid - Row 2 (LatAm & MCP Toolsets) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <LatAmToolboxPanel onRunTemplate={handleRunDirective} isRunning={isRunning} />
+          <McpSkillsPanel loadedSkills={loadedSkills} mcpUrl="/api/mcp" />
+        </div>
+
+        {/* Dashboard Grid - Row 3 (Sub-layers) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <MemoryPanel
             memorySegments={memorySegments}

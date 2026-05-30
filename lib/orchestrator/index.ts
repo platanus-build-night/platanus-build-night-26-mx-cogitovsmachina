@@ -1,24 +1,38 @@
-import { AgentStep, MentalPlan, MemorySegment, DatabaseFork } from '@/types';
+import { AgentStep, MentalPlan } from '@/types';
 import { ghostClient } from '../ghost';
 import { memoryClient } from '../memory';
-import { getTemplate } from '../toolbox';
+import { LATAM_TOOLBOX_TEMPLATES, LatAmTemplate } from '../latam-toolbox';
 
 export interface StreamChunk {
-  type: 'step' | 'plan' | 'memory' | 'database' | 'complete';
+  type: 'step' | 'plan' | 'memory' | 'database' | 'skills' | 'complete';
   data: any;
 }
 
 export async function* runOrchestrator(directive: string): AsyncGenerator<StreamChunk, void, unknown> {
   const sessionId = Math.random().toString(36).substr(2, 9);
   
-  // --- PARSE LATAM TEMPLATE IF APPLICABLE ---
-  let isTemplate = false;
-  let templateCode = '';
-  const match = directive.match(/Run\s+(MX_CFDI_AUDIT|BR_BOLETO_SYNC|CL_BOLETA_EMISSION)\s+template/i);
-  
-  if (match) {
-    isTemplate = true;
-    templateCode = match[1].toUpperCase();
+  // --- STEP 0: LOAD REUSABLE FRAMEWORK SKILLS ---
+  yield {
+    type: 'skills',
+    data: {
+      loaded: [
+        { name: "Tesla Mental Prototyping", source: "skills/mental-prototype.md" },
+        { name: "Osmani TDD Self-Correction", source: "skills/harness-tdd.md" },
+        { name: "MCP Sandbox Syncer", source: "skills/mcp-sandbox.md" }
+      ]
+    }
+  };
+
+  // Check if directive matches any LatAm compliance templates
+  const directiveLower = directive.toLowerCase();
+  let matchedTemplate: LatAmTemplate | undefined = undefined;
+
+  if (directiveLower.includes('cfdi') || directiveLower.includes('mexico') || directiveLower.includes('sat')) {
+    matchedTemplate = LATAM_TOOLBOX_TEMPLATES.find(t => t.id === 'mx_cfdi_4_0');
+  } else if (directiveLower.includes('dte') || directiveLower.includes('chile') || directiveLower.includes('sii')) {
+    matchedTemplate = LATAM_TOOLBOX_TEMPLATES.find(t => t.id === 'cl_dte_invoicing');
+  } else if (directiveLower.includes('payroll') || directiveLower.includes('nómina') || directiveLower.includes('retención') || directiveLower.includes('salary')) {
+    matchedTemplate = LATAM_TOOLBOX_TEMPLATES.find(t => t.id === 'latam_payroll_calc');
   }
 
   // --- STEP 1: ROUTING & INTENT PARSING ---
@@ -28,17 +42,17 @@ export async function* runOrchestrator(directive: string): AsyncGenerator<Stream
       id: 'step_1',
       agentName: 'Router',
       status: 'running',
-      message: isTemplate 
-        ? `Recognized LatAm Toolbox intent: [${templateCode}] Compliance Check`
+      message: matchedTemplate 
+        ? `Matched LatAm compliance workflow: ${matchedTemplate.name}`
         : `Analyzing directive: "${directive}"`,
       timestamp: new Date().toISOString(),
-      reasoning: "Decomposing high-level business goals into specialized agent actions..."
+      reasoning: "Reviewing active system rules and retrieving episodic context from memory.build..."
     }
   };
   
-  await new Promise(resolve => setTimeout(resolve, 800));
+  await new Promise(resolve => setTimeout(resolve, 1000));
 
-  // Retrieve context from memory
+  // Pull context from memory
   const memoryContext = await memoryClient.retrieveContext(directive);
   yield {
     type: 'memory',
@@ -55,9 +69,11 @@ export async function* runOrchestrator(directive: string): AsyncGenerator<Stream
       id: 'step_1',
       agentName: 'Router',
       status: 'success',
-      message: `Decomposed directive using ${memoryContext.length} memory context keys.`,
+      message: matchedTemplate
+        ? `Loaded template constraints for ${matchedTemplate.country}. Decomposed requirements.`
+        : `Decomposed directive using ${memoryContext.length} memory context keys.`,
       timestamp: new Date().toISOString(),
-      tokenCost: isTemplate ? 1500 : 2048
+      tokenCost: 2048
     }
   };
 
@@ -68,68 +84,54 @@ export async function* runOrchestrator(directive: string): AsyncGenerator<Stream
       id: 'step_2',
       agentName: 'PlanningAgent',
       status: 'running',
-      message: "Formulating execution plan and validation criteria...",
+      message: "Formulating execution plan and validation criteria based on loaded framework skills...",
       timestamp: new Date().toISOString(),
-      reasoning: "Simulating potential execution paths prior to executing mutations..."
+      reasoning: "Applying 'Tesla Mental Prototyping' skill to simulate DB sandboxing steps and business logic validations."
     }
   };
 
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  await new Promise(resolve => setTimeout(resolve, 1500));
 
-  let plan: MentalPlan;
+  const planSteps = [
+    {
+      id: 'plan_1',
+      description: "Provision disposable sandbox PostgreSQL database on ghost.build",
+      dependencies: [],
+      validationCriteria: "Active Ghost fork ID received and reachable"
+    },
+    {
+      id: 'plan_2',
+      description: matchedTemplate 
+        ? `Create table and verify compliance schema: ${matchedTemplate.name}`
+        : "Execute schema updates and sample queries to verify compatibility",
+      dependencies: ['plan_1'],
+      validationCriteria: "Zero syntax errors returned from PostgreSQL compiler"
+    }
+  ];
 
-  if (isTemplate && templateCode) {
-    const t = getTemplate(templateCode);
-    plan = {
-      directive,
-      targetStateSpec: `JSON Spec v2.0 - Target state: validated ${t?.country} ${templateCode} ledger compliance`,
-      steps: [
-        {
-          id: 'plan_1',
-          description: `Fork production DB to isolate ${t?.country} compliance test environment`,
-          dependencies: [],
-          validationCriteria: "Active Ghost fork created"
-        },
-        {
-          id: 'plan_2',
-          description: `Verify sql constraints: ${t?.validationRules.join(', ')}`,
-          dependencies: ['plan_1'],
-          validationCriteria: "Zero compliance violations found in queries"
-        },
-        {
-          id: 'plan_3',
-          description: "Sync compliance results to memory.build episodic logs",
-          dependencies: ['plan_2'],
-          validationCriteria: "Episodic memory block synced"
-        }
-      ]
-    };
-  } else {
-    plan = {
-      directive,
-      targetStateSpec: "JSON Spec v1.0 - Target state: verified database migrations and synced operations logs",
-      steps: [
-        {
-          id: 'plan_1',
-          description: "Provision disposable sandbox PostgreSQL database",
-          dependencies: [],
-          validationCriteria: "Active Ghost fork ID received and reachable"
-        },
-        {
-          id: 'plan_2',
-          description: "Execute schema updates and sample queries to verify compatibility",
-          dependencies: ['plan_1'],
-          validationCriteria: "Zero syntax errors returned from PostgreSQL compiler"
-        },
-        {
-          id: 'plan_3',
-          description: "Sync operation outcome and execution trace to memory.build",
-          dependencies: ['plan_2'],
-          validationCriteria: "Context sync confirmation payload received"
-        }
-      ]
-    };
+  if (matchedTemplate) {
+    planSteps.push({
+      id: 'plan_3',
+      description: `Validate regional business constraints: ${matchedTemplate.businessValidationRules.join(' | ')}`,
+      dependencies: ['plan_2'],
+      validationCriteria: "All mathematical and format checks pass"
+    });
   }
+
+  planSteps.push({
+    id: `plan_${matchedTemplate ? '4' : '3'}`,
+    description: "Sync operation outcome and execution trace to memory.build",
+    dependencies: [matchedTemplate ? 'plan_3' : 'plan_2'],
+    validationCriteria: "Context sync confirmation payload received"
+  });
+
+  const plan: MentalPlan = {
+    directive,
+    targetStateSpec: matchedTemplate 
+      ? `Target state: Verified schema migration for ${matchedTemplate.name} on sandboxed DB.`
+      : "JSON Spec v1.0 - Target state: verified database migrations and synced operations logs",
+    steps: planSteps
+  };
 
   yield { type: 'plan', data: plan };
 
@@ -141,7 +143,7 @@ export async function* runOrchestrator(directive: string): AsyncGenerator<Stream
       status: 'success',
       message: "Mental prototyping complete. Execution plan validated against SMB safety boundaries.",
       timestamp: new Date().toISOString(),
-      tokenCost: isTemplate ? 3000 : 4096
+      tokenCost: 4096
     }
   };
 
@@ -173,28 +175,23 @@ export async function* runOrchestrator(directive: string): AsyncGenerator<Stream
       id: 'step_3',
       agentName: 'DataAgent',
       status: 'running',
-      message: `Database sandbox active: ${fork.id}. Testing template queries...`,
+      message: `Database sandbox active: ${fork.id}. Testing schema updates...`,
       timestamp: new Date().toISOString()
     }
   };
 
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  await new Promise(resolve => setTimeout(resolve, 1200));
 
-  // Run SQL test query
-  let sql = "SELECT * FROM users WHERE tenant_id = 101;";
-  if (isTemplate && templateCode) {
-    const t = getTemplate(templateCode);
-    sql = t?.defaultSql || sql;
-  }
-
-  const dbResult = await ghostClient.executeQuery(fork.id, sql);
+  // Run schema creation query
+  const sqlSchema = matchedTemplate ? matchedTemplate.schemaVerificationSql : "CREATE TABLE IF NOT EXISTS sample_items (id SERIAL PRIMARY KEY, name TEXT);";
+  const dbResult = await ghostClient.executeQuery(fork.id, sqlSchema);
   
   yield {
     type: 'database',
     data: {
       action: 'query',
       forkId: fork.id,
-      sql,
+      sql: sqlSchema,
       result: dbResult
     }
   };
@@ -205,9 +202,11 @@ export async function* runOrchestrator(directive: string): AsyncGenerator<Stream
       id: 'step_3',
       agentName: 'DataAgent',
       status: 'success',
-      message: "Database queries tested and validated successfully in sandbox.",
+      message: matchedTemplate 
+        ? `Compliant LatAm database schema instantiated successfully in sandbox fork.`
+        : "Database queries tested and validated successfully in sandbox.",
       timestamp: new Date().toISOString(),
-      tokenCost: isTemplate ? 2800 : 3500,
+      tokenCost: 3500,
       outputData: dbResult
     }
   };
@@ -225,15 +224,19 @@ export async function* runOrchestrator(directive: string): AsyncGenerator<Stream
     }
   };
 
-  await new Promise(resolve => setTimeout(resolve, 800));
+  await new Promise(resolve => setTimeout(resolve, 1200));
 
-  // Sync compliance context into memory
-  const syncKey = isTemplate ? `${templateCode}_compliance_result` : "execution_log";
-  const syncValue = isTemplate 
-    ? `Successfully verified compliance for template ${templateCode} on fork ${fork.id}.`
+  // Perform memory sync of outcomes
+  const logMsg = matchedTemplate
+    ? `Successfully instantiated and verified compliance for ${matchedTemplate.name} on ghost fork ${fork.id}`
     : `Successfully executed: "${directive}" using ghost fork ${fork.id}`;
-
-  const syncedMem = await memoryClient.syncSegment(syncKey, syncValue, "episodic");
+  
+  const syncedMem = await memoryClient.syncSegment(
+    matchedTemplate ? matchedTemplate.id : "execution_log", 
+    logMsg, 
+    "episodic"
+  );
+  
   yield {
     type: 'memory',
     data: {
@@ -248,25 +251,18 @@ export async function* runOrchestrator(directive: string): AsyncGenerator<Stream
       id: 'step_4',
       agentName: 'Harness',
       status: 'success',
-      message: isTemplate
-        ? `Verification harness succeeded. All SII/SAT/Bancário validation checks passed successfully.`
-        : "Verification harness succeeded. All constraints met. Closed loop secured.",
+      message: "Verification harness succeeded. All constraints met. Closed loop secured.",
       timestamp: new Date().toISOString(),
-      tokenCost: 1000
+      tokenCost: 1500
     }
   };
-
-  // Complete session
-  const totalCost = isTemplate 
-    ? (1500 + 3000 + 2800 + 1000) 
-    : (2048 + 4096 + 3500 + 1500);
 
   yield {
     type: 'complete',
     data: {
       sessionId,
       status: 'success',
-      totalCost,
+      totalCost: 11144,
       timestamp: new Date().toISOString()
     }
   };
