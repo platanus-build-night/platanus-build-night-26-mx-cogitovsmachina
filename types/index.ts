@@ -35,3 +35,6 @@ export interface DatabaseFork {
   createdAt: string;
   queriesRun: number;
 }
+
+export * from './mcp';
+
