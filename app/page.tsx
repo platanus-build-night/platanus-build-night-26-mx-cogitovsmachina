@@ -56,7 +56,7 @@ export default function LandingPage() {
             The AI-Native OS for LatAm Companies
           </div>
           
-          <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white leading-[1.1] max-w-3xl mx-auto">
+          <h1 className="text-5xl sm:text-8xl lg:text-[110px] font-extrabold tracking-tight text-white leading-[1.05] max-w-5xl mx-auto">
             The AI cofounder that makes your company autonomous
           </h1>
           
